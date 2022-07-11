@@ -9,13 +9,63 @@ namespace Assets.Plugins.Remote
 {
     internal class Sender
     {
-        public string ServerHost = "localhost";
-        public string Identification = "Test" + new System.Random().Next(0, 10000);
+        public string ServerHost;
+        public string Identification;
+        private static string Mark = "client";
 
-        public Sender(string serverHost = null, string identification = null)
+        public Sender(string whereToSend = null, string whoAmI = null)
         {
-            ServerHost = serverHost ?? "localhost";
-            Identification = identification ?? ("Test" + new System.Random().Next(0, 10000));
+            ServerHost = whereToSend ?? "localhost";
+            Identification = whoAmI ?? ("Test" + new System.Random().Next(0, 10000));
+        }
+
+        public IEnumerator PostStream<T1, T2>(string api, Func<T2, T1> next, float interval = 1, T2 currentStatus = default)
+        {
+            T1 nextData;
+            var url = ServerHost + "/api/" + api;
+            while ((nextData = next(currentStatus)) != null)
+            {
+                var jsonStream = EncodeJson(nextData);
+                using (var uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonStream)))
+                using (var downloadHandler = new DownloadHandlerBuffer())
+                {
+                    while (true)
+                    {
+                        using (UnityWebRequest uwr = new UnityWebRequest(url, "POST"))
+                        {
+                            uwr.SetRequestHeader("Accept", "application/json");
+                            uwr.SetRequestHeader("Content-Type", "application/json");
+                            uwr.SetRequestHeader("Identification", Identification);
+                            uwr.SetRequestHeader("Mark", Mark);
+                            uwr.SetRequestHeader("Json-Packing", "true");
+                            uwr.uploadHandler = uploadHandler;
+                            uwr.downloadHandler = downloadHandler;
+                            uwr.disposeUploadHandlerOnDispose = false;
+                            uwr.disposeDownloadHandlerOnDispose = false;
+                            yield return uwr.SendWebRequest();
+                            var data = Encoding.UTF8.GetString(uwr.downloadHandler.data);
+                            if (uwr.isDone)
+                            {
+                                if (uwr.isNetworkError)
+                                {
+                                    yield return new WaitForSeconds(interval);
+                                }
+                                else if (uwr.isHttpError)
+                                {
+                                    Debug.LogError($"HttpError: {uwr.responseCode} - {data}");
+                                    yield break;
+                                }
+                                else
+                                {
+                                    // success
+                                    currentStatus = (T2)DecodeJson(data, typeof(T2));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         public IEnumerator SendJsonToAPI(string api, string json, Action<string> onRsp, Action<string, string> onErr)

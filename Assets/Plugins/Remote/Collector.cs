@@ -54,8 +54,14 @@ namespace Assets.Plugins.Remote
             CollectedLogs.Add(log);
         }
 
-        public List<Log> GetLogs()
+        public List<Log> GetLogs(bool swapOut = false)
         {
+            if (swapOut)
+            {
+                var ret = CollectedLogs;
+                CollectedLogs = new List<Log>();
+                return ret;
+            }
             return CollectedLogs;
         }
 
@@ -63,10 +69,12 @@ namespace Assets.Plugins.Remote
 
         #region Profiles
 
+        [Serializable]
         public class Profile
         {
-            public float fps { get; set; }
-            public float mem { get; set; }
+            public float fps;
+            public float mem;
+            public float time;
         }
 
         private List<Profile> CollectedProfiles = new List<Profile>();
@@ -100,12 +108,18 @@ namespace Assets.Plugins.Remote
             Update_CalcFPS();
             Update_CalcMEM();
             Update_CalcTIME();
-            var profile = new Profile { fps = currentFPS, mem = currentMEM };
+            var profile = new Profile { fps = currentFPS, mem = currentMEM, time = currentTIME };
             CollectedProfiles.Add(profile);
         }
 
-        public List<Profile> GetProfiles()
+        public List<Profile> GetProfiles(bool swapOut = false)
         {
+            if (swapOut)
+            {
+                var ret = CollectedProfiles;
+                CollectedProfiles = new List<Profile>();
+                return ret;
+            }
             return CollectedProfiles;
         }
 
