@@ -10,6 +10,7 @@ namespace Assets.Plugins.Remote
     internal class Reporter : MonoBehaviour
     {
         public string ServerHost;
+        public string AppKey;
         private Collector Collector;
         private Sender Sender;
 
@@ -17,73 +18,19 @@ namespace Assets.Plugins.Remote
         {
             Collector = new Collector();
             Collector.Initialize();
-            Sender = new Sender();
+            Sender = new Sender(AppKey, ServerHost);
         }
 
         private void Start()
         {
-            //StartCoroutine("Test");
-            //StartCoroutine("Report");
-            InvokeRepeating("PrintTime", 1, 1);
-            //StartCoroutine("TestResend");
-            StartCoroutine("SyncCollections", 3f);
+            //InvokeRepeating("PrintTime", 1, 1);
+            //StartCoroutine("SyncCollections", 3f);
+            Invoke("Test", 0f);
         }
 
         private void Update()
         {
             Collector.Update();
-        }
-
-        public IEnumerator Test()
-        {
-            var logs = new Collector.Log[]
-            {
-                new Collector.Log(){ logString = "logString1", stackTrace = "stackTrace1", type = "type1"},
-                new Collector.Log(){ logString = "logString2", stackTrace = "stackTrace2", type = "type2"},
-                new Collector.Log(){ logString = "logString3", stackTrace = "stackTrace3", type = "type3"},
-            };
-            var json = Sender.ArgsToJson(logs, "3333", "f&f\"ff", 666);
-            print(json);
-            return Sender.SendJsonToAPI("test", json, Debug.Log, (a, b) =>
-            {
-                Debug.LogError(a);
-                Debug.Log(b);
-            });
-        }
-
-        public IEnumerator SendCollections(float interval = 1f)
-        {
-            string json = null;
-            Action<string> onSucc = _ =>
-            {
-                json = null;
-                //print("Succ");
-            };
-            Action<string, string> onFail = (_1, _2) =>
-            {
-                //print("Fail");
-            };
-            while (true)
-            {
-                if (json == null)
-                {
-                    var logs = Collector.GetLogs(true);
-                    var profiles = Collector.GetProfiles(true);
-                    profiles = null; // test ignore
-                    json = Sender.ArgsToJson(logs, profiles);
-                    //print("New");
-                }
-                yield return Sender.SendJsonToAPI("syncollec", json, onSucc, onFail);
-                yield return new WaitForSeconds(interval);
-            }
-        }
-
-        public IEnumerator Report()
-        {
-            var json = Sender.ArgsToJson("client", Sender.Identification);
-            yield return Sender.SendJsonToAPI("mark", json, null, null);
-            //yield return 0;
-            StartCoroutine("SyncCollections");
         }
 
         private void PrintTime()
@@ -122,6 +69,34 @@ namespace Assets.Plugins.Remote
                 };
             };
             return Sender.PostStream("syncollec", next, interval, new CollectionPackStatus());
+        }
+
+        public void Test()
+        {
+            var json = Sender.ArgvToJson("aa", "bb", new Collector.Log[]{
+                     new Collector.Log{
+                         logString = "logString1",
+                         stackTrace = "stackTrace1",
+                         type = "type1",
+                     },
+                     new Collector.Log{
+                         logString = "logString2",
+                         stackTrace = "stackTrace2",
+                         type = "type2",
+                     },
+                 }, 3.14f, 5);
+            var os = Sender.ArgvFromJson(json, typeof(string), typeof(string), typeof(Collector.Log[]), typeof(float), typeof(int));
+            foreach (var item in os)
+            {
+                Debug.Log($"{(item ?? new object()).GetType()} -- {item}");
+            }
+            foreach (var item in (Collector.Log[])os[2])
+            {
+                Debug.Log($"{item.logString} -- {item.stackTrace} -- {item.type}");
+            }
+
+            //print(typeof(IList).IsAssignableFrom(typeof(int[])));
+            //print(typeof(IList<int>).IsAssignableFrom(typeof(int[])));
         }
     }
 }
