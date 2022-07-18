@@ -7,12 +7,22 @@ using UnityEngine.Networking;
 
 namespace Assets.Plugins.Remote
 {
+    internal interface ISenderContext
+    {
+        bool Enabled { get; }
+        string AppKey { get; }
+        string ServerHost { get; }
+        string DeviceKey { get; }
+    }
+
     internal class Sender
     {
-        public string AppKey;
-        public string ServerHost;
-        public string DeviceKey;
         private static string Mark = "client";
+
+        private ISenderContext context;
+        private string AppKey => context?.AppKey;
+        private string ServerHost => context?.ServerHost;
+        private string DeviceKey => context?.DeviceKey;
 
         public enum DataForm
         {
@@ -26,11 +36,9 @@ namespace Assets.Plugins.Remote
             JsonMulti,
         }
 
-        public Sender(string appKey = null, string serverHost = null, string deviceKey = null)
+        public Sender(ISenderContext context)
         {
-            AppKey = String.IsNullOrEmpty(appKey) ? "unknown" : appKey;
-            ServerHost = String.IsNullOrEmpty(serverHost) ? "localhost" : serverHost;
-            DeviceKey = String.IsNullOrEmpty(deviceKey) ? ("Test" + new System.Random().Next(0, 10000)) : deviceKey;
+            this.context = context;
         }
 
         private void AddCommonHeaders(UnityWebRequest uwr, DataForm dataForm = DataForm.None)
@@ -81,6 +89,51 @@ namespace Assets.Plugins.Remote
                                 {
                                     // success
                                     currentStatus = (T2)FromJson(data, typeof(T2));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public IEnumerator PostStream<T>(string api, Func<T> next, float interval = 1)
+        {
+            T nextData;
+            var url = ServerHost + "/api/" + api;
+            while ((nextData = next()) != null)
+            {
+                var jsonStream = ToJson(nextData);
+                using (var uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonStream)))
+                using (var downloadHandler = new DownloadHandlerBuffer())
+                {
+                    while (true)
+                    {
+                        using (UnityWebRequest uwr = new UnityWebRequest(url, "POST"))
+                        {
+                            AddCommonHeaders(uwr, DataForm.JsonSingle);
+                            uwr.uploadHandler = uploadHandler;
+                            uwr.downloadHandler = downloadHandler;
+                            uwr.disposeUploadHandlerOnDispose = false;
+                            uwr.disposeDownloadHandlerOnDispose = false;
+                            yield return uwr.SendWebRequest();
+                            var data = Encoding.UTF8.GetString(uwr.downloadHandler.data);
+                            if (uwr.isDone)
+                            {
+                                if (uwr.isNetworkError)
+                                {
+                                    yield return new WaitForSeconds(interval);
+                                }
+                                else if (uwr.isHttpError)
+                                {
+                                    // wait for resending
+                                    Debug.LogError($"HttpError: {uwr.responseCode} - {data}");
+                                    yield break;
+                                }
+                                else
+                                {
+                                    // success
                                     break;
                                 }
                             }

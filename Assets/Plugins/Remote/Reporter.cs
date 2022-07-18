@@ -7,31 +7,53 @@ using UnityEngine.Networking;
 
 namespace Assets.Plugins.Remote
 {
-    internal class Reporter : MonoBehaviour
+    public class Reporter : MonoBehaviour, ISenderContext, ICollectorContext
     {
-        public string ServerHost;
-        public string AppKey;
-        public bool CollectingLog;
-        public bool CollectingFps;
-        public bool CollectingMem;
+        [Header("Sender")]
+        [SerializeField] private bool defaultHttpSender = true;
+
+        [SerializeField] private string serverHost = "localhost";
+        [SerializeField] private string appKey = "unknown";
+        [SerializeField] private string deviceKey = ("Test" + new System.Random().Next(0, 10000));
+
+        [Header("Collector")]
+        [SerializeField] private bool collectingLog = false;
+
+        [SerializeField] private bool collectingFps = false;
+        [SerializeField] private bool collectingMem = false;
+        [SerializeField] private List<string> ignoredCustomTags = new List<string>();
+
         private Collector Collector;
         private Sender Sender;
 
+        bool ISenderContext.Enabled { get => defaultHttpSender; }
+        public string ServerHost { get => serverHost; set => serverHost = value; }
+        public string AppKey { get => appKey; set => appKey = value; }
+        public string DeviceKey { get => deviceKey; set => deviceKey = value; }
+        public bool CollectingLog { get => collectingLog; set => collectingLog = value; }
+        public bool CollectingFps { get => collectingFps; set => collectingFps = value; }
+        public bool CollectingMem { get => collectingMem; set => collectingMem = value; }
+        public List<string> IgnoredCustomTags { get => ignoredCustomTags; set => ignoredCustomTags = value; }
+
         private void Awake()
         {
-            Collector = new Collector();
-            Collector.Awake();
-            Sender = new Sender(AppKey, ServerHost);
-            Collector.CollectingLog = CollectingLog;
-            Collector.CollectingFps = CollectingFps;
-            Collector.CollectingMem = CollectingMem;
+            Collector = new Collector(this);
+            Sender = new Sender(this);
         }
 
         private void Start()
         {
-            InvokeRepeating("PrintTime", 1, 1);
             StartCoroutine("SyncCollections", 3f);
-            //Invoke("Test", 0f);
+        }
+
+        private void OnEnable()
+        {
+            Collector.OnEnable();
+        }
+
+        private void OnDisable()
+        {
+            Collector.OnDisable();
         }
 
         private void Update()
@@ -39,43 +61,10 @@ namespace Assets.Plugins.Remote
             Collector.Update();
         }
 
-        private void PrintTime()
-        {
-            print(Time.realtimeSinceStartup);
-        }
-
         public IEnumerator SyncCollections(float interval = 3f)
         {
             var stream = new Collector.Stream(Collector);
-            return Sender.PostStream("syncollec", _ => stream.ReadRest(false), interval, new object());
-        }
-
-        public void Test()
-        {
-            var json = Sender.ArgvToJson("aa", "bb", new Collector.Log[]{
-                     new Collector.Log{
-                         logString = "logString1",
-                         stackTrace = "stackTrace1",
-                         type = "type1",
-                     },
-                     new Collector.Log{
-                         logString = "logString2",
-                         stackTrace = "stackTrace2",
-                         type = "type2",
-                     },
-                 }, 3.14f, 5);
-            var os = Sender.ArgvFromJson(json, typeof(string), typeof(string), typeof(Collector.Log[]), typeof(float), typeof(int));
-            foreach (var item in os)
-            {
-                Debug.Log($"{(item ?? new object()).GetType()} -- {item}");
-            }
-            foreach (var item in (Collector.Log[])os[2])
-            {
-                Debug.Log($"{item.logString} -- {item.stackTrace} -- {item.type}");
-            }
-
-            //print(typeof(IList).IsAssignableFrom(typeof(int[])));
-            //print(typeof(IList<int>).IsAssignableFrom(typeof(int[])));
+            return Sender.PostStream("syncollec", () => stream.ReadRest(false), interval);
         }
     }
 }

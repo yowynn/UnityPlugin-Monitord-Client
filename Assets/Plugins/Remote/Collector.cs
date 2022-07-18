@@ -4,6 +4,14 @@ using UnityEngine;
 
 namespace Assets.Plugins.Remote
 {
+    internal interface ICollectorContext
+    {
+        bool CollectingLog { get; set; }
+        bool CollectingFps { get; set; }
+        bool CollectingMem { get; set; }
+        List<string> IgnoredCustomTags { get; set; }
+    }
+
     internal class Collector
     {
         [Serializable]
@@ -80,90 +88,23 @@ namespace Assets.Plugins.Remote
 
         [NonSerialized] public List<Log> CollectedLogs = new List<Log>();
         [NonSerialized] public List<Stat> CollectedStats = new List<Stat>();
-        private float currentTime = 0;
-        private float currentMem = 0;
-        private float currentFps = 0;
+        [NonSerialized] public float currentTime = 0;
+        [NonSerialized] public float currentMem = 0;
+        [NonSerialized] public float currentFps = 0;
 
         private List<Log> _threadedLogs = new List<Log>();
-        private bool _collectingLog = false;
-        private bool _collectingMem = false;
-        private bool _collectingFps = false;
+        private ICollectorContext context;
 
-        public bool CollectingLog
-        {
-            get
-            {
-                return _collectingLog;
-            }
-            set
-            {
-                if (_collectingLog != value)
-                {
-                    _collectingLog = value;
-                    if (value)
-                    {
-                        Application.logMessageReceivedThreaded += HandleThreadedLog;
-                        Updating += UpdateLogs;
-                    }
-                    else
-                    {
-                        Application.logMessageReceivedThreaded -= HandleThreadedLog;
-                        Updating -= UpdateLogs;
-                    }
-                }
-            }
-        }
-
-        public bool CollectingMem
-        {
-            get
-            {
-                return _collectingMem;
-            }
-            set
-            {
-                if (_collectingMem != value)
-                {
-                    _collectingMem = value;
-                    if (value)
-                    {
-                        Updating += UpdateMem;
-                    }
-                    else
-                    {
-                        Updating -= UpdateMem;
-                    }
-                }
-            }
-        }
-
-        public bool CollectingFps
-        {
-            get
-            {
-                return _collectingFps;
-            }
-            set
-            {
-                if (_collectingFps != value)
-                {
-                    _collectingFps = value;
-                    if (value)
-                    {
-                        Updating += UpdateFps;
-                    }
-                    else
-                    {
-                        Updating -= UpdateFps;
-                    }
-                }
-            }
-        }
+        public bool CollectingLog => context?.CollectingLog ?? false;
+        public bool CollectingFps => context?.CollectingFps ?? false;
+        public bool CollectingMem => context?.CollectingMem ?? false;
+        public List<string> IgnoredCustomTags => context?.IgnoredCustomTags;
 
         #region Logs
 
         private void HandleThreadedLog(string logString, string stackTrace, LogType type)
         {
+            if (!CollectingLog) return;
             Log log = new Log() { time = currentTime, logString = logString, stackTrace = stackTrace, type = type.ToString() };
             lock (_threadedLogs)
             {
@@ -173,6 +114,7 @@ namespace Assets.Plugins.Remote
 
         private void UpdateLogs()
         {
+            if (!CollectingLog) return;
             if (_threadedLogs.Count > 0)
             {
                 lock (_threadedLogs)
@@ -201,12 +143,14 @@ namespace Assets.Plugins.Remote
 
         private void UpdateFps()
         {
+            if (!CollectingFps) return;
             var fps = 1f / Time.deltaTime;
             currentFps = fps;
         }
 
         private void UpdateMem()
         {
+            if (!CollectingMem) return;
             var gcmem = ((float)System.GC.GetTotalMemory(false)) / 1024 / 1024;
             currentMem = gcmem;
         }
@@ -219,20 +163,23 @@ namespace Assets.Plugins.Remote
 
         public void AddStat(string key, string value)
         {
+            if (IgnoredCustomTags != null && IgnoredCustomTags.Contains(key)) return;
             CollectedStats.Add(new Stat { time = currentTime, key = key, value = value });
         }
 
         public void AddStat(string key, bool value)
         {
+            if (IgnoredCustomTags != null && IgnoredCustomTags.Contains(key)) return;
             if (value)
-                AddStat(key, "true");
+                CollectedStats.Add(new Stat { time = currentTime, key = key, value = "true" });
             else
-                AddStat(key, "false");
+                CollectedStats.Add(new Stat { time = currentTime, key = key, value = "false" });
         }
 
         public void AddStat<T>(string key, T value) where T : struct
         {
-            AddStat(key, value.ToString());
+            if (IgnoredCustomTags != null && IgnoredCustomTags.Contains(key)) return;
+            CollectedStats.Add(new Stat { time = currentTime, key = key, value = value.ToString() });
         }
 
         public List<Stat> GetStats(bool swapOut = false)
@@ -248,20 +195,39 @@ namespace Assets.Plugins.Remote
 
         #endregion Stat
 
+        public Collector(ICollectorContext context)
+        {
+            this.context = context;
+        }
+
         public event Action Updating;
 
-        public void Awake()
+        public void OnEnable()
         {
+            OnDisable(); // to avoid multi-add event
+            Application.logMessageReceivedThreaded += HandleThreadedLog;
+            Updating += UpdateLogs;
             Updating += UpdateTime;
+            Updating += UpdateFps;
+            Updating += UpdateMem;
+        }
+
+        public void OnDisable()
+        {
+            Application.logMessageReceivedThreaded += HandleThreadedLog;
+            Updating += UpdateLogs;
+            Updating += UpdateTime;
+            Updating += UpdateFps;
+            Updating += UpdateMem;
         }
 
         public void Update()
         {
             Updating();
             if (CollectingMem)
-                AddStat("mem", currentMem);
+                AddStat("#mem", currentMem);
             if (CollectingFps)
-                AddStat("fps", currentFps);
+                AddStat("#fps", currentFps);
         }
     }
 }
