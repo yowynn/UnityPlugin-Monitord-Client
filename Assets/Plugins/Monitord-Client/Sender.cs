@@ -5,7 +5,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace Assets.Plugins.Remote
+namespace Wynne.MoniterdClient
 {
     internal interface ISenderContext
     {

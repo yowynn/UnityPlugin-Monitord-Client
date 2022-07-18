@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-namespace Assets.Plugins.Remote
+namespace Wynne.MoniterdClient
 {
     public class Reporter : MonoBehaviour, ISenderContext, ICollectorContext
     {
@@ -64,6 +64,7 @@ namespace Assets.Plugins.Remote
             }
             Collector = new Collector(this);
             Sender = new Sender(this);
+            DontDestroyOnLoad(gameObject);
         }
 
         private void Start()

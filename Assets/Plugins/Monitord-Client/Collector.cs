@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Assets.Plugins.Remote
+namespace Wynne.MoniterdClient
 {
     internal interface ICollectorContext
     {
