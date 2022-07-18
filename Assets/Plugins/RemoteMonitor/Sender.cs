@@ -13,16 +13,19 @@ namespace Assets.Plugins.Remote
         string AppKey { get; }
         string ServerHost { get; }
         string DeviceKey { get; }
+        string DeviceShowName { get; }
     }
 
-    internal class Sender
+    public class Sender
     {
         private static string Mark = "client";
 
         private ISenderContext context;
+        private bool Enabled => context?.Enabled ?? false;
         private string AppKey => context?.AppKey;
         private string ServerHost => context?.ServerHost;
         private string DeviceKey => context?.DeviceKey;
+        private string DeviceShowName => context?.DeviceShowName;
 
         public enum DataForm
         {
@@ -36,7 +39,7 @@ namespace Assets.Plugins.Remote
             JsonMulti,
         }
 
-        public Sender(ISenderContext context)
+        internal Sender(ISenderContext context)
         {
             this.context = context;
         }
@@ -47,6 +50,7 @@ namespace Assets.Plugins.Remote
             uwr.SetRequestHeader("Content-Type", "application/json");
             uwr.SetRequestHeader("AppKey", AppKey);
             uwr.SetRequestHeader("DeviceKey", DeviceKey);
+            uwr.SetRequestHeader("DeviceName", DeviceShowName);
             uwr.SetRequestHeader("Mark", Mark);
             uwr.SetRequestHeader("Env", "C#");
             uwr.SetRequestHeader("DataForm", dataForm.ToString());
@@ -64,6 +68,11 @@ namespace Assets.Plugins.Remote
                 {
                     while (true)
                     {
+                        if (!Enabled)
+                        {
+                            yield return new WaitForSeconds(interval);
+                            continue;
+                        }
                         using (UnityWebRequest uwr = new UnityWebRequest(url, "POST"))
                         {
                             AddCommonHeaders(uwr, DataForm.JsonSingle);
@@ -89,6 +98,7 @@ namespace Assets.Plugins.Remote
                                 {
                                     // success
                                     currentStatus = (T2)FromJson(data, typeof(T2));
+                                    yield return new WaitForSeconds(interval);
                                     break;
                                 }
                             }
@@ -110,6 +120,11 @@ namespace Assets.Plugins.Remote
                 {
                     while (true)
                     {
+                        if (!Enabled)
+                        {
+                            yield return new WaitForSeconds(interval);
+                            continue;
+                        }
                         using (UnityWebRequest uwr = new UnityWebRequest(url, "POST"))
                         {
                             AddCommonHeaders(uwr, DataForm.JsonSingle);
@@ -134,6 +149,7 @@ namespace Assets.Plugins.Remote
                                 else
                                 {
                                     // success
+                                    yield return new WaitForSeconds(interval);
                                     break;
                                 }
                             }

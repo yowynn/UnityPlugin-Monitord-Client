@@ -12,7 +12,7 @@ namespace Assets.Plugins.Remote
         List<string> IgnoredCustomTags { get; set; }
     }
 
-    internal class Collector
+    public class Collector
     {
         [Serializable]
         public class Log
@@ -64,6 +64,8 @@ namespace Assets.Plugins.Remote
                 {
                     collector.CollectedLogs.Clear();
                     collector.CollectedStats.Clear();
+                    currentLogIndex = 0;
+                    currentStatIndex = 0;
                 }
                 return pack;
             }
@@ -79,8 +81,10 @@ namespace Assets.Plugins.Remote
                 currentStatIndex = collector.CollectedStats.Count;
                 if (clear)
                 {
-                    collector.CollectedLogs.RemoveRange(0, currentLogIndex);
-                    collector.CollectedStats.RemoveRange(0, currentStatIndex);
+                    collector.CollectedLogs.Clear();
+                    collector.CollectedStats.Clear();
+                    currentLogIndex = 0;
+                    currentStatIndex = 0;
                 }
                 return pack;
             }
@@ -195,7 +199,7 @@ namespace Assets.Plugins.Remote
 
         #endregion Stat
 
-        public Collector(ICollectorContext context)
+        internal Collector(ICollectorContext context)
         {
             this.context = context;
         }
@@ -214,11 +218,11 @@ namespace Assets.Plugins.Remote
 
         public void OnDisable()
         {
-            Application.logMessageReceivedThreaded += HandleThreadedLog;
-            Updating += UpdateLogs;
-            Updating += UpdateTime;
-            Updating += UpdateFps;
-            Updating += UpdateMem;
+            Application.logMessageReceivedThreaded -= HandleThreadedLog;
+            Updating -= UpdateLogs;
+            Updating -= UpdateTime;
+            Updating -= UpdateFps;
+            Updating -= UpdateMem;
         }
 
         public void Update()
