@@ -85,11 +85,6 @@ namespace Wynne.MonitordClient
             request.SetRequestHeader("C-Token", Token);
             request.SetRequestHeader("C-Show-Name", ShowName);
             request.SetRequestHeader("C-Mark", "client");
-
-            request.SetRequestHeader("AppKey", AppKey);
-            request.SetRequestHeader("DeviceKey", Token);
-            request.SetRequestHeader("DeviceName", ShowName);
-            request.SetRequestHeader("Mark", "client");
         }
 
         public async Task<string> SendWebRequestAsync(UnityWebRequest uwr, bool retry = false)
