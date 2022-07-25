@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace Wynne.MoniterdClient
+namespace Wynne.MonitordClient
 {
     internal interface IRpcClient
     {
@@ -22,7 +22,8 @@ namespace Wynne.MoniterdClient
 
         event Action<string, object[]> OnReceived;
 
-        bool IsConnected { get; }
+        bool IsConnected();
+        bool IsConnecting();
     }
 
     public class HttpRpcClient : IRpcClient
@@ -32,7 +33,8 @@ namespace Wynne.MoniterdClient
         private string Token;
         private string ShowName;
         private List<UnityWebRequest> requestToRetry;
-        public bool IsConnected => requestToRetry != null && requestToRetry.Count == 0;
+        public bool IsConnected() { return requestToRetry != null && requestToRetry.Count == 0; }
+        public bool IsConnecting() { return false; }
 
         public event Action<string, object[]> OnReceived;
 
@@ -66,7 +68,7 @@ namespace Wynne.MoniterdClient
 
         public void Send(string method, params object[] args)
         {
-            if (!IsConnected)
+            if (!IsConnected())
                 Reconnect();
             Post(method, args);
         }

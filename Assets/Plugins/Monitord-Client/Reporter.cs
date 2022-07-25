@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-namespace Wynne.MoniterdClient
+namespace Wynne.MonitordClient
 {
     public class Reporter : MonoBehaviour, ICollectorContext
     {
@@ -98,6 +98,11 @@ namespace Wynne.MoniterdClient
             GUI.Label(new Rect(10, 50, 500, 500), s);
         }
 
+        public Collector.Stream CreateStream()
+        {
+            return new Collector.Stream(Collector);
+        }
+
         public IEnumerator SyncCollections(float interval = 3f)
         {
             if (defaultHttpSender)
@@ -105,13 +110,17 @@ namespace Wynne.MoniterdClient
                 IRpcClient client = new HttpRpcClient();
                 client.Connect(serverHost, null);
                 client.Certificate(AppKey, DeviceKey, DeviceShowName);
-                var stream = new Collector.Stream(Collector);
+                var stream = CreateStream();
                 while (true)
                 {
-                    if (client.IsConnected)
+                    if (client.IsConnected())
                     {
                         var data = stream.ReadRest(true);
                         client.Send("syncollec", data);
+                    }
+                    else if (client.IsConnecting())
+                    {
+                        // just wait nothing to do
                     }
                     else
                     {

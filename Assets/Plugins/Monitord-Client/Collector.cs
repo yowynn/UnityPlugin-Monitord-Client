@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Wynne.MoniterdClient
+namespace Wynne.MonitordClient
 {
     internal interface ICollectorContext
     {

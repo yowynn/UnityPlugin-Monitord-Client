@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace Wynne.MoniterdClient
+namespace Wynne.MonitordClient
 {
     internal static class HttpCodec
     {
