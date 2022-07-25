@@ -17,16 +17,16 @@ namespace Wynne.MoniterdClient
         [Serializable]
         public class Log
         {
-            public float time;
-            public string logString;
-            public string stackTrace;
-            public string type;
+            public double time;
+            public string msg;
+            public string trace;
+            public string level;
         }
 
         [Serializable]
         public class Stat
         {
-            public float time;
+            public double time;
             public string key;
             public string value;
         }
@@ -92,12 +92,14 @@ namespace Wynne.MoniterdClient
 
         [NonSerialized] public List<Log> CollectedLogs = new List<Log>();
         [NonSerialized] public List<Stat> CollectedStats = new List<Stat>();
-        [NonSerialized] public float currentTime = 0;
+        [NonSerialized] public double currentTime = 0;
         [NonSerialized] public float currentMem = 0;
         [NonSerialized] public float currentFps = 0;
 
         private List<Log> _threadedLogs = new List<Log>();
         private ICollectorContext context;
+
+        private double unixTimeOffset = 0;
 
         public bool CollectingLog => context?.CollectingLog ?? false;
         public bool CollectingFps => context?.CollectingFps ?? false;
@@ -109,7 +111,7 @@ namespace Wynne.MoniterdClient
         private void HandleThreadedLog(string logString, string stackTrace, LogType type)
         {
             if (!CollectingLog) return;
-            Log log = new Log() { time = currentTime, logString = logString, stackTrace = stackTrace, type = type.ToString() };
+            Log log = new Log() { time = currentTime, msg = logString, trace = stackTrace, level = type.ToString() };
             lock (_threadedLogs)
             {
                 _threadedLogs.Add(log);
@@ -161,7 +163,7 @@ namespace Wynne.MoniterdClient
 
         private void UpdateTime()
         {
-            var time = Time.realtimeSinceStartup;
+            var time = Time.realtimeSinceStartup + unixTimeOffset;
             currentTime = time;
         }
 
@@ -209,9 +211,10 @@ namespace Wynne.MoniterdClient
         public void OnEnable()
         {
             OnDisable(); // to avoid multi-add event
+            unixTimeOffset = DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds - Time.realtimeSinceStartup;
             Application.logMessageReceivedThreaded += HandleThreadedLog;
-            Updating += UpdateLogs;
             Updating += UpdateTime;
+            Updating += UpdateLogs;
             Updating += UpdateFps;
             Updating += UpdateMem;
         }
@@ -219,15 +222,26 @@ namespace Wynne.MoniterdClient
         public void OnDisable()
         {
             Application.logMessageReceivedThreaded -= HandleThreadedLog;
-            Updating -= UpdateLogs;
             Updating -= UpdateTime;
+            Updating -= UpdateLogs;
             Updating -= UpdateFps;
             Updating -= UpdateMem;
         }
 
+        private float _lastUpdateTime = 0;
+        private float _updateTime = 0.1f;
+
         public void Update()
         {
             Updating();
+            if (Time.time - _lastUpdateTime > _updateTime)
+            {
+                _lastUpdateTime = Time.time;
+            }
+            else
+            {
+                return;
+            }
             if (CollectingMem)
                 AddStat("#mem", currentMem);
             if (CollectingFps)

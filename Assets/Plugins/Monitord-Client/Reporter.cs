@@ -6,7 +6,7 @@ using UnityEngine.Serialization;
 
 namespace Wynne.MoniterdClient
 {
-    public class Reporter : MonoBehaviour, ISenderContext, ICollectorContext
+    public class Reporter : MonoBehaviour, ICollectorContext
     {
         [Header("Sender")]
         [SerializeField] private bool defaultHttpSender = false;
@@ -30,9 +30,6 @@ namespace Wynne.MoniterdClient
         [SerializeField] private List<string> ignoredCustomTags = new List<string>();
 
         public Collector Collector { get; private set; }
-        public Sender Sender { get; private set; }
-
-        bool ISenderContext.Enabled { get => defaultHttpSender; }
         public string ServerHost { get => serverHost; set => serverHost = value; }
         public string AppKey { get => appKey; set => appKey = value; }
         public string DeviceKey { get => deviceKey; private set => deviceKey = value; }
@@ -63,7 +60,6 @@ namespace Wynne.MoniterdClient
                 appKey = "unknown";
             }
             Collector = new Collector(this);
-            Sender = new Sender(this);
             DontDestroyOnLoad(gameObject);
         }
 
@@ -104,8 +100,26 @@ namespace Wynne.MoniterdClient
 
         public IEnumerator SyncCollections(float interval = 3f)
         {
-            var stream = new Collector.Stream(Collector);
-            return Sender.PostStream("syncollec", () => stream.ReadRest(true), interval);
+            if (defaultHttpSender)
+            {
+                IRpcClient client = new HttpRpcClient();
+                client.Connect(serverHost, null);
+                client.Certificate(AppKey, DeviceKey, DeviceShowName);
+                var stream = new Collector.Stream(Collector);
+                while (true)
+                {
+                    if (client.IsConnected)
+                    {
+                        var data = stream.ReadRest(true);
+                        client.Send("syncollec", data);
+                    }
+                    else
+                    {
+                        client.Reconnect();
+                    }
+                    yield return new WaitForSeconds(interval);
+                }
+            }
         }
     }
 }

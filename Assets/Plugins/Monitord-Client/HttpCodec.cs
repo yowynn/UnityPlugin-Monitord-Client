@@ -1,165 +1,16 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 
 namespace Wynne.MoniterdClient
 {
-    internal interface ISenderContext
+    internal static class HttpCodec
     {
-        bool Enabled { get; }
-        string AppKey { get; }
-        string ServerHost { get; }
-        string DeviceKey { get; }
-        string DeviceShowName { get; }
-    }
-
-    public class Sender
-    {
-        private static string Mark = "client";
-
-        private ISenderContext context;
-        private bool Enabled => context?.Enabled ?? false;
-        private string AppKey => context?.AppKey;
-        private string ServerHost => context?.ServerHost;
-        private string DeviceKey => context?.DeviceKey;
-        private string DeviceShowName => context?.DeviceShowName;
-
-        public enum DataForm
-        {
-            // post no datas
-            None,
-
-            // post one argument
-            JsonSingle,
-
-            // post multi arguments wrap in a json table
-            JsonMulti,
-        }
-
-        internal Sender(ISenderContext context)
-        {
-            this.context = context;
-        }
-
-        private void AddCommonHeaders(UnityWebRequest uwr, DataForm dataForm = DataForm.None)
-        {
-            uwr.SetRequestHeader("Accept", "application/json");
-            uwr.SetRequestHeader("Content-Type", "application/json");
-            uwr.SetRequestHeader("AppKey", AppKey);
-            uwr.SetRequestHeader("DeviceKey", DeviceKey);
-            uwr.SetRequestHeader("DeviceName", DeviceShowName);
-            uwr.SetRequestHeader("Mark", Mark);
-            uwr.SetRequestHeader("Env", "C#");
-            uwr.SetRequestHeader("DataForm", dataForm.ToString());
-        }
-
-        public IEnumerator PostStream<T1, T2>(string api, Func<T2, T1> next, float interval = 1, T2 currentStatus = default)
-        {
-            T1 nextData;
-            var url = ServerHost + "/api/" + api;
-            while ((nextData = next(currentStatus)) != null)
-            {
-                var jsonStream = ToJson(nextData);
-                using (var uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonStream)))
-                using (var downloadHandler = new DownloadHandlerBuffer())
-                {
-                    while (true)
-                    {
-                        if (!Enabled)
-                        {
-                            yield return new WaitForSeconds(interval);
-                            continue;
-                        }
-                        using (UnityWebRequest uwr = new UnityWebRequest(url, "POST"))
-                        {
-                            AddCommonHeaders(uwr, DataForm.JsonSingle);
-                            uwr.uploadHandler = uploadHandler;
-                            uwr.downloadHandler = downloadHandler;
-                            uwr.disposeUploadHandlerOnDispose = false;
-                            uwr.disposeDownloadHandlerOnDispose = false;
-                            yield return uwr.SendWebRequest();
-                            var data = Encoding.UTF8.GetString(uwr.downloadHandler.data);
-                            if (uwr.isDone)
-                            {
-                                if (uwr.isNetworkError)
-                                {
-                                    yield return new WaitForSeconds(interval);
-                                }
-                                else if (uwr.isHttpError)
-                                {
-                                    // wait for resending
-                                    Debug.LogError($"HttpError: {uwr.responseCode} - {data}");
-                                    yield break;
-                                }
-                                else
-                                {
-                                    // success
-                                    currentStatus = (T2)FromJson(data, typeof(T2));
-                                    yield return new WaitForSeconds(interval);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        public IEnumerator PostStream<T>(string api, Func<T> next, float interval = 1)
-        {
-            T nextData;
-            var url = ServerHost + "/api/" + api;
-            while ((nextData = next()) != null)
-            {
-                var jsonStream = ToJson(nextData);
-                using (var uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonStream)))
-                using (var downloadHandler = new DownloadHandlerBuffer())
-                {
-                    while (true)
-                    {
-                        if (!Enabled)
-                        {
-                            yield return new WaitForSeconds(interval);
-                            continue;
-                        }
-                        using (UnityWebRequest uwr = new UnityWebRequest(url, "POST"))
-                        {
-                            AddCommonHeaders(uwr, DataForm.JsonSingle);
-                            uwr.uploadHandler = uploadHandler;
-                            uwr.downloadHandler = downloadHandler;
-                            uwr.disposeUploadHandlerOnDispose = false;
-                            uwr.disposeDownloadHandlerOnDispose = false;
-                            yield return uwr.SendWebRequest();
-                            var data = Encoding.UTF8.GetString(uwr.downloadHandler.data);
-                            if (uwr.isDone)
-                            {
-                                if (uwr.isNetworkError)
-                                {
-                                    yield return new WaitForSeconds(interval);
-                                }
-                                else if (uwr.isHttpError)
-                                {
-                                    // wait for resending
-                                    Debug.LogError($"HttpError: {uwr.responseCode} - {data}");
-                                    yield break;
-                                }
-                                else
-                                {
-                                    // success
-                                    yield return new WaitForSeconds(interval);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // escape json string
         public static string EscapeJsonString(string str)
         {
             return str.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
