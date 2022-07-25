@@ -7,7 +7,6 @@ local event = G.require("lua/event")
 local client = {}
 local _client_server
 local _client_env
-
 function client.connect(address, port, onConnect, onClose)
     print("[lua-remote]Start Client~ connect " .. address .. ":" .. port)
     local server = net.connect(address, port, function(server)

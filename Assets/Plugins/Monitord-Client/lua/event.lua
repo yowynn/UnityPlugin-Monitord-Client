@@ -43,10 +43,17 @@ function event.sender(handler, new)
     end
 end
 
+local localcall = function(eventName, ...)
+    return event.invoke(nil, eventName, ...)
+end
+
 function event.recver(handler, new)
     local handlers = _event_registeredHandlers[handler]
     if handlers and handlers.recv then
         return handlers.recv
+    end
+    if not handler then
+        return localcall
     end
     if new then
         return function(eventName, ...)

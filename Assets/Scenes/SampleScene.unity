@@ -276,7 +276,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 815c92408956feb4e94607529bd74721, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  defaultHttpSender: 1
+  defaultHttpSender: 0
   serverHost: localhost
   appKey: 
   deviceShowName: 

@@ -1,11 +1,12 @@
 --- the timer module
 ---@author: Wynn Yo 2022-06-22 14:53:35
-local uv = require("luv")
 
 ---@class timer
 local timer = {}
 
 function timer.start(timeout, interval, callback, ...)
+    timeout = timeout and timeout/1000
+    interval = interval and interval/1000
     local callargs = table.pack(...)
     local t = {}
     local function wrapcallback()
